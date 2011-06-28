@@ -1,0 +1,8 @@
+synth_x86_64_s32.lo synth_x86_64_s32.o: synth_x86_64_s32.S mangle.h \
+  ../../src/config.h intsym.h
+
+mangle.h:
+
+../../src/config.h:
+
+intsym.h:

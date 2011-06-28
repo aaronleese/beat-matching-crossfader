@@ -1,0 +1,8 @@
+synth_stereo_x86_64_float.lo synth_stereo_x86_64_float.o:  \
+ synth_stereo_x86_64_float.S mangle.h ../../src/config.h intsym.h
+
+mangle.h:
+
+../../src/config.h:
+
+intsym.h:

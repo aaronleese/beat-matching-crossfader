@@ -5,8 +5,8 @@
 //  Created by Aaron Leese on 5/17/11.
 //  Copyright 2011 StageCraft Software. All rights reserved.
 //
- 
-#include "juceHeader.h"
+
+#include "JuceHeader.h"
 
 #include <utility>
 #include <cstdio>
@@ -25,21 +25,30 @@
 /////////////////
 
 
-class JsonToJuceReader : public Thread
+class JsonToJuceReader : public Thread,
+    public ChangeBroadcaster
 {
-   
+    CriticalSection* lockToUse;
 public:
     
     JsonToJuceReader() : Thread("json reader thread") 
     {
-       //    
+        //    
+        lockToUse = 0; 
     }
     
-    void ReadJsonToValueTree(String jsonStream, juce::ValueTree * juceTreeNode)
+    JsonToJuceReader(CriticalSection* lockToUse_) : Thread("json reader thread") 
+    {
+        lockToUse = lockToUse_;
+        
+    }
+    
+    
+    void ReadJsonToValueTree(String jsonStream, juce::ValueTree & juceTreeNode)
     {
         // only one at a time ....
         if (isThreadRunning()) return; 
-            
+        
         treeToPopulate = juceTreeNode;
         
         // create the root JSON node
@@ -50,16 +59,16 @@ public:
         std::string stdJsonString(jsonStream.toUTF8()); 
         
         bool success = myJsonReader->parse(stdJsonString, *rootOfJsonTree);
-      
+        
         if (success) 
         {
             startThread(2);
         }
     }
-      
+    
 private:
     
-    ValueTree* treeToPopulate;
+    ValueTree treeToPopulate;
     Json::Value* rootOfJsonTree;
     
     // Printing ...
@@ -144,7 +153,7 @@ private:
         
         if( val.isString() ) {
             
-           // String newPropName = String(val.asString().c_str()).retainCharacters("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
+            // String newPropName = String(val.asString().c_str()).retainCharacters("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
             juceTreeNode.setProperty("value", val.asString().c_str(), 0); 
             
         } else if( val.isBool() ) {
@@ -188,31 +197,28 @@ private:
         }
         return true;
     }
-
+    
     void run()
     {
-        Read(*rootOfJsonTree, *treeToPopulate, 0); 
+        
+        if (lockToUse != 0) 
+            lockToUse->enter();
+            
+        // READ the entire tree
+        Read(*rootOfJsonTree, treeToPopulate, 0); 
+        
+        // SAVE ....
+        saveToFile();
         
         
-        DBG("done - write to file");
-        // save ....
+        if (lockToUse != 0) 
+            lockToUse->exit();
         
-        File* testWrite = new File(File::getSpecialLocation(File::userDesktopDirectory).getChildFile("testttt"));
-        FileOutputStream* testStream = new FileOutputStream(*testWrite);
         
-        // binary 
-        // ValueTree::writeToStream(	OutputStream & 	output )	
-        //  myTrackInformation.writeToStream(testStream);
         
-        XmlElement* temp = treeToPopulate->createXml();
-        temp->writeToFile(*testWrite, String::empty); 
-        delete temp;
-        
-        delete testStream;
-        delete testWrite;
-        
-                
     }
+    
+    void saveToFile();
     
 };
 

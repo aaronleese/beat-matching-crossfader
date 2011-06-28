@@ -137,24 +137,29 @@ void AudioPlayer::loadFile(const File &fileToLoad) {
 	String album = reader->metadataValues.getValue ("TALB", "unknown");
 	
 	// ADD to the library .....
-	
-    if (myTrackInformation != 0) delete myTrackInformation;
-    myTrackInformation = new ValueTree("Track");
-
-    myTrackInformation->setProperty(String("name"), fileToLoad.getFileNameWithoutExtension(), 0);
-	myTrackInformation->setProperty(String("path"), fileToLoad.getFullPathName(), 0);
-	myTrackInformation->setProperty(String("title"), title, 0);
-	myTrackInformation->setProperty(String("artist"), artist, 0);
-	myTrackInformation->setProperty(String("album"), album, 0);
-
-    analyzeTrack();
+    // ADD to the library .....
+	ValueTree trackItem("Track");
+	trackItem.setProperty(String("name"), title, 0);
+	trackItem.setProperty(String("path"), fileToLoad.getFullPathName(), 0);
+	trackItem.setProperty(String("title"), title, 0);
+	trackItem.setProperty(String("artist"), artist, 0);
+	trackItem.setProperty(String("album"), album, 0);
+	 
+    // get the metaData 
+    if (myTrackInformation != 0)
+        deleteAndZero(myTrackInformation);
+    
+    
+    // starts a new thread ....
+    myTrackInformation = new ValueTree(analyzeTrack(trackItem));
+    
     
 	DBG ("AudioPlayer - done loading audio");
 		
     
 }
 
-void AudioPlayer::analyzeTrack()
+ValueTree AudioPlayer::analyzeTrack(ValueTree & trackInLib)
 {
 
     jassert(trackBuffer != 0);
@@ -167,8 +172,8 @@ void AudioPlayer::analyzeTrack()
     //char* fp = pCodegen->getCodeString();
     //String fp = pCodegen->getCodeString().c_str();
     
-    String artist = myTrackInformation->getProperty("artist").toString();
-    String title = myTrackInformation->getProperty("title").toString();
+    String artist = trackInLib.getProperty("artist").toString();
+    String title = trackInLib.getProperty("title").toString();
     
     float duration = float(trackBuffer->getNumSamples())/44100.0f;
     
@@ -193,21 +198,29 @@ void AudioPlayer::analyzeTrack()
     
     URL searchString( urlString );
     InputStream* searchStream = searchString.createInputStream(false, 0, 0);
-    if (searchStream == 0) return;
+    if (searchStream == 0) return ValueTree::invalid;
     
     XmlElement* results = XmlDocument::parse(searchStream->readEntireStreamAsString());
     
     if (results == 0) 
     {
         DBG("no results");
-        return;
+        return ValueTree::invalid;
     }
     
     
     XmlElement* songs = results->getChildByName("songs");
+    if (songs == 0) return ValueTree::invalid;
     
-    if (songs == 0) return;
     
+    // Create the value Tree
+    ValueTree TrackMetaData("trackMetaData"); 
+    
+    // Create the reader if needed
+    if (myReader == 0) myReader = new JsonToJuceReader(&audioPlayerLock);
+    
+    const ScopedLock myScopedLock (audioPlayerLock);
+	
     forEachXmlChildElement (*songs, song)
     {
         
@@ -228,19 +241,24 @@ void AudioPlayer::analyzeTrack()
            
             // some other high level meta data ...
             XmlElement* key = summary->getChildByName("key");
-            if (key != 0) myTrackInformation->setProperty(String("key"), key->getAllSubText(), 0);
+            if (key != 0) TrackMetaData.setProperty(String("key"), key->getAllSubText(), 0);
             
             XmlElement* tempo = summary->getChildByName("tempo");
-             if (tempo != 0) myTrackInformation->setProperty(String("tempo"), tempo->getAllSubText(), 0);
+             if (tempo != 0) TrackMetaData.setProperty(String("tempo"), tempo->getAllSubText(), 0);
             
             XmlElement* duration = summary->getChildByName("duration");
-            if (duration != 0) myTrackInformation->setProperty(String("duration"), duration->getAllSubText(), 0);
+            if (duration != 0) TrackMetaData.setProperty(String("duration"), duration->getAllSubText(), 0);
             
     
             URL analysisURL( analysis_url->getAllSubText() );
             InputStream* analysisStream = analysisURL.createInputStream(false, 0);
-            if (analysisStream == 0) return;
-            readJson(analysisStream->readEntireStreamAsString());     
+            if (analysisStream == 0) return ValueTree::invalid;
+          
+            String jsonStream = analysisStream->readEntireStreamAsString();     
+
+            // trigger the json tree
+            myReader->ReadJsonToValueTree(jsonStream, TrackMetaData);
+            
             delete analysisStream; 
     
             break;
@@ -248,9 +266,10 @@ void AudioPlayer::analyzeTrack()
          
     }
     
-    
     delete results;
     delete searchStream;
+     
+    return TrackMetaData;
     
     // some other echonest calls ...
     
@@ -283,7 +302,6 @@ void AudioPlayer::run() // worker thread for loading files ...
     
     trackBuffer->readFromAudioReader(reader, 200000, reader->lengthInSamples-200000, 200000, true, true); 
 
-	
 }
 
 int AudioPlayer::getSamplesToNextBeat()
@@ -293,14 +311,17 @@ int AudioPlayer::getSamplesToNextBeat()
     if (myTrackInformation == 0) return 0;
     if (myReader == 0) return 0;
     if (myReader->isThreadRunning()) return 0;
-    
+        
+    //const ScopedLock myScopedLock (audioPlayerLock);
+	
+    if ( ! myTrackInformation->getChildWithName("beats").isValid()) return 0;
     
     ValueTree beats = myTrackInformation->getChildWithName("beats");
-      
+   
+    if ( ! beats.isValid()) return 0;
+    
     float nextBeat = beats.getChild(currentBeatIndex).getChildWithName("start").getProperty("value", 0);
      
-    //if ( ! beat.isValid()) return 0;
-   
     if (nextBeat <= 0) return 0; // invalid ...
     
     while (nextBeat < playPos/44100.0f)
@@ -342,12 +363,7 @@ void AudioPlayer::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiMessag
 	// move the play position in the cache ... so we get different data next time we process
 	playPos = int(playPos + float(numSamples)*freqShift_total + trackBuffer->getNumSamples())%trackBuffer->getNumSamples();
 	
-    
-    if (myTrackInformation == 0) return;
-    
-    ValueTree beats = myTrackInformation->getChildWithName("beats");
-    
-    if (freqShift_total <= 0) return;
+     
     
 }
 
@@ -371,10 +387,11 @@ void AudioPlayerUI::buttonClicked (Button* buttonThatWasClicked) {
 	else if (buttonThatWasClicked == load)
 	{
         
-       
 		WildcardFileFilter wildcard(formatManager->getWildcardForAllFormats(), String::empty, String("Audio Files"));
 		
-		FileBrowserComponent browser (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, File::nonexistent, &wildcard, 0);
+		FileBrowserComponent browser (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, 
+                                      File::getSpecialLocation(File::userHomeDirectory),
+                                      &wildcard, 0);
 		
 		FileChooserDialogBox dialogBox (T("Open Audio File"),
 										T("Select an audio file to play on this turntable."),
@@ -396,7 +413,6 @@ void AudioPlayerUI::buttonClicked (Button* buttonThatWasClicked) {
 void AudioPlayerUI::mouseDown(const MouseEvent &e) { 
 	
 }
-
 
 /////////////////////////////////////////////// WAVEFORM DISPLAY
 
@@ -506,6 +522,9 @@ void AudioPlayerWaveformDisplay::paint(Graphics& g) {
     
     if (myAudioPlayer->myTrackInformation == 0) return;
     
+     
+    const ScopedLock myScopedLock (myAudioPlayer->audioPlayerLock);
+	
     // green playHead marker line 
     g.setColour(Colours::green);
     g.drawLine(getWidth()/2, 0, getWidth()/2, getHeight(), 1);
@@ -621,56 +640,6 @@ void AudioPlayerWaveformDisplay::mouseDown(const MouseEvent &e) {
 	
 }
 
-/////////////////////////////////////////////// JSON
-
-void AudioPlayer::readJson(String jsonStream)
-{
-    
-    //JsonToJuceReader* 
-    
-    if (myReader == 0) myReader = new JsonToJuceReader();
-    myReader->ReadJsonToValueTree(jsonStream, myTrackInformation);
-
-    // delete myReader;
-        
-    
-    //ValueTree trackInfo = myTrackInformation->getChildWithName("track");
-     
-    /*
-     Json::Reader* myJsonReader = new Json::Reader();
-     std::string stdJsonString(jsonStream.toUTF8()); 
-     Json::Value rootValue =  new Json::Value();
-     
-     bool success = myJsonReader->parse(stdJsonString, rootValue);
-     
-     DBG("success? " + String(success));
-     
-     
-     // PrintJSONTree(rootValue, 0);
-     ReadJSONToValueTree(rootValue, *myTrackInformation, 0); 
-     
-     DBG("kids " + String(myTrackInformation->getNumChildren()));
-     
-     */
-    
-    // set bpm
-    
-    
-    /*
-    if (trackInfo.getChildWithName("tempo").isValid())
-        bpm = trackInfo.getChildWithName("tempo").getProperty("value");
-    
-    if (trackInfo.getChildWithName("mode").isValid())
-        myTrackInformation->setProperty("mode", trackInfo.getChildWithName("mode").getProperty("value"), 0);
-    
-    if (trackInfo.getChildWithName("time_signature").isValid())
-        myTrackInformation->setProperty("time_signature", trackInfo.getChildWithName("time_signature").getProperty("value"), 0);
-    */
-    
-    
-    
-    
-}
 
 
 

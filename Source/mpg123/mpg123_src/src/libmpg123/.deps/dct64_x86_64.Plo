@@ -1,0 +1,8 @@
+dct64_x86_64.lo dct64_x86_64.o: dct64_x86_64.S mangle.h \
+  ../../src/config.h intsym.h
+
+mangle.h:
+
+../../src/config.h:
+
+intsym.h:

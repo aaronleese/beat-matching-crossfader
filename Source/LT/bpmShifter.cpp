@@ -74,9 +74,7 @@ BPMShifter::~BPMShifter() {
 	 
 	
 }
-
-
-
+ 
 void BPMShifter::setInputBuffer(AudioSampleBuffer* inputBuffer) {
 	
 	processMarker = 0;

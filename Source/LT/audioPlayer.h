@@ -43,6 +43,8 @@ public:
 	AudioThumbnail* audioThumb;
 	AudioThumbnailCache* audioThumbCache;
 	
+    CriticalSection audioPlayerLock;
+    
 	// for loading AudioPlayers ... caching
 	AudioSampleBuffer* trackBuffer;
 	int playPos;
@@ -61,7 +63,6 @@ public:
     ValueTree* myTrackInformation;
     
     JsonToJuceReader* myReader;
-
     
 	AudioPlayer();
 	
@@ -85,11 +86,9 @@ public:
     
 	void loadFile(const File &fileToLoad);
      
-    void analyzeTrack();
+    ValueTree analyzeTrack(ValueTree & trackInLib);
     
-    void readJson(String jsonStream);
-    
-	// get UI
+    // get UI
 	Component* getEditor(); 
 	Component* getTTEditor();
 	 

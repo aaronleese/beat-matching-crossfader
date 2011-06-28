@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Format 0x02 TOC Data</key>
+	<data>
+	AJwBAQEQAKAAAAAAAQAAARAAoQAAAAALAAABEACiAAAAACUgNQEQAAEAAAAAAAIhARAA
+	AgAAAAADFw8BEAADAAAAAAYOPwEQAAQAAAAACTEoARAABQAAAAANJiMBEAAGAAAAABEy
+	MAEQAAcAAAAAFgYcARAACAAAAAAZFhcBEAAJAAAAABwMGQEQAAoAAAAAHQQUARAACwAA
+	AAAgAkQ=
+	</data>
+	<key>Sessions</key>
+	<array>
+		<dict>
+			<key>First Track</key>
+			<integer>1</integer>
+			<key>Last Track</key>
+			<integer>11</integer>
+			<key>Leadout Block</key>
+			<integer>168953</integer>
+			<key>Session Number</key>
+			<integer>1</integer>
+			<key>Session Type</key>
+			<integer>0</integer>
+			<key>Track Array</key>
+			<array>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>1</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>183</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>2</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>15240</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>3</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>28113</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>4</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>44215</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>5</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>61385</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>6</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>80298</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>7</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>99478</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>8</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>114173</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>9</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>126925</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>10</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>130820</integer>
+				</dict>
+				<dict>
+					<key>Data</key>
+					<false/>
+					<key>Point</key>
+					<integer>11</integer>
+					<key>Pre-Emphasis Enabled</key>
+					<false/>
+					<key>Session Number</key>
+					<integer>1</integer>
+					<key>Start Block</key>
+					<integer>144218</integer>
+				</dict>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -188,21 +188,6 @@ void MainAudioProcessor::processBlock (AudioSampleBuffer& buffer, MidiBuffer& mi
     myAudioPlayerRight->processBlock(buffer, midiMessages);
      
     
-    // ask the host for the current time so we can display it...
-    AudioPlayHead::CurrentPositionInfo newTime;
-    
-    if (getPlayHead() != 0 && getPlayHead()->getCurrentPosition (newTime))
-    {
-        // Successfully got the current time from the host..
-        lastPosInfo = newTime;
-    }
-    else
-    {
-        // If the host fails to fill-in the current time, we'll just clear it to a default..
-        lastPosInfo.resetToDefault();
-    }
-    
-    
 }
 
 //==============================================================================

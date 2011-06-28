@@ -1,0 +1,521 @@
+diff --git a/src/audio/audio_file_formats/juce_AudioCDReader.h b/src/audio/audio_file_formats/juce_AudioCDReader.h
+index 44a3361..5cf05ad 100644
+--- a/src/audio/audio_file_formats/juce_AudioCDReader.h
++++ b/src/audio/audio_file_formats/juce_AudioCDReader.h
+@@ -81,15 +81,21 @@ public:
+     */
+     bool isCDStillPresent() const;
+
++    /** Returns an array of sample offsets with the start of each track on the CD
++        and the end of the CD.
++    */
++    const Array<int>& getTrackOffsets() { return trackStartSamples; }
++
+     /** Returns the total number of tracks (audio + data).
+     */
+-    int getNumTracks() const;
++    int getNumTracks() const { return trackStartSamples.size() - 1; }
+
+     /** Finds the sample offset of the start of a track.
+
+-        @param trackNum     the track number, where 0 is the first track.
++        @param trackNum     the track number, where trackNum = 0 is the first track
++                            and trackNum = getNumTracks() means the end of the CD.
+     */
+-    int getPositionOfTrackStart (int trackNum) const;
++    int getPositionOfTrackStart (int trackNum) const { return trackStartSamples [trackNum]; }
+
+     /** Returns true if a given track is an audio track.
+
+@@ -134,11 +140,29 @@ public:
+     */
+     const Array <int> findIndexesInTrack (const int trackNumber);
+
++    // Constants relating to organization of samples on the disc.
++    static const int FRAMES_PER_SEC = 75;
++    static const int SAMPLES_PER_SEC = 44100;
++    static const int SAMPLES_PER_FRAME = SAMPLES_PER_SEC / FRAMES_PER_SEC;
++
+     /** Returns the CDDB id number for the CD.
+
+         It's not a great way of identifying a disc, but it's traditional.
+     */
+-    int getCDDBId();
++    int getCDDBId() {
++        int checksum = 0;
++        int tracks = trackStartSamples.size() - 1;
++
++        for (int i = 0; i < tracks; ++i) {
++            for (int offset = trackStartSamples[i] / SAMPLES_PER_SEC; offset > 0; offset /= 10)
++                checksum += offset % 10;
++        }
++
++        int length = (trackStartSamples[tracks] - trackStartSamples[0]) / SAMPLES_PER_SEC;
++
++        // CCLLLLTT: checksum, length, tracks
++        return ((checksum & 0xFF) << 24) | (length << 8) | tracks;
++    }
+
+     /** Tries to eject the disk.
+
+@@ -150,21 +174,16 @@ public:
+     juce_UseDebuggingNewOperator
+
+ private:
++    Array<int> trackStartSamples;
+
+ #if JUCE_MAC
+     File volumeDir;
+     Array<File> tracks;
+-    Array<int> trackStartSamples;
+     int currentReaderTrack;
+     ScopedPointer <AudioFormatReader> reader;
+     AudioCDReader (const File& volume);
+-public:
+-    static int compareElements (const File&, const File&);
+-private:
+
+ #elif JUCE_WINDOWS
+-    int numTracks;
+-    int trackStarts[100];
+     bool audioTracks [100];
+     void* handle;
+     bool indexingEnabled;
+@@ -175,6 +194,7 @@ private:
+
+ #elif JUCE_LINUX
+     AudioCDReader();
++
+ #endif
+
+     AudioCDReader (const AudioCDReader&);
+diff --git a/src/native/mac/juce_mac_AudioCDReader.mm b/src/native/mac/juce_mac_AudioCDReader.mm
+index 3ceeda4..b880440 100644
+--- a/src/native/mac/juce_mac_AudioCDReader.mm
++++ b/src/native/mac/juce_mac_AudioCDReader.mm
+@@ -25,9 +25,13 @@
+
+ // (This file gets included by juce_mac_NativeCode.mm, rather than being
+ // compiled on its own).
+ #if JUCE_INCLUDED_FILE && JUCE_USE_CDREADER
+
++#include "juce_mac_AudioCDReader_helpers.h"
+ //==============================================================================
+ static void juce_findCDs (Array<File>& cds)
+ {
+     File volumes ("/Volumes");
+@@ -80,51 +84,14 @@ AudioCDReader::~AudioCDReader()
+ {
+ }
+
+-static int juce_getCDTrackNumber (const File& file)
+-{
+-    return file.getFileName()
+-               .initialSectionContainingOnly ("0123456789")
+-               .getIntValue();
+-}
+-
+-int AudioCDReader::compareElements (const File& first, const File& second)
+-{
+-    const int firstTrack  = juce_getCDTrackNumber (first);
+-    const int secondTrack = juce_getCDTrackNumber (second);
+-
+-    jassert (firstTrack > 0 && secondTrack > 0);
+-
+-    return firstTrack - secondTrack;
+-}
+-
+ void AudioCDReader::refreshTrackLengths()
+ {
+-    tracks.clear();
+-    trackStartSamples.clear();
+-    volumeDir.findChildFiles (tracks, File::findFiles | File::ignoreHiddenFiles, false, "*.aiff");
+-
+-    tracks.sort (*this);
+-
+-    AiffAudioFormat format;
+-    int sample = 0;
+-
+-    for (int i = 0; i < tracks.size(); ++i)
+-    {
+-        trackStartSamples.add (sample);
+-
+-        FileInputStream* const in = tracks.getReference(i).createInputStream();
+-
+-        if (in != 0)
+-        {
+-            ScopedPointer <AudioFormatReader> r (format.createReaderFor (in, true));
+-
+-            if (r != 0)
+-                sample += (int) r->lengthInSamples;
+-        }
++    if (const char* error = getTrackOffsets(volumeDir, &trackStartSamples)) {
++        // Log error here?
++        return;
+     }
+
+-    trackStartSamples.add (sample);
+-    lengthInSamples = sample;
++    lengthInSamples = trackStartSamples[trackStartSamples.size() - 1] - trackStartSamples[0];
+ }
+
+ bool AudioCDReader::readSamples (int** destSamples, int numDestChannels, int startOffsetInDestBuffer,
+@@ -186,19 +153,10 @@ bool AudioCDReader::isCDStillPresent() const
+     return volumeDir.exists();
+ }
+
+-int AudioCDReader::getNumTracks() const
+-{
+-    return tracks.size();
+-}
+-
+-int AudioCDReader::getPositionOfTrackStart (int trackNum) const
+-{
+-    return trackStartSamples [trackNum];
+-}
+-
+ bool AudioCDReader::isTrackAudio (int trackNum) const
+ {
+-    return tracks [trackNum] != File::nonexistent;
++    File track = tracks [trackNum];
++    return track != File::nonexistent && track.getFileName().endsWith(".aiff");
+ }
+
+ void AudioCDReader::enableIndexScanning (bool b)
+@@ -216,9 +174,4 @@ const Array <int> AudioCDReader::findIndexesInTrack (const int trackNumber)
+     return Array <int>();
+ }
+
+-int AudioCDReader::getCDDBId()
+-{
+-    return 0; //xxx
+-}
+-
+ #endif
+diff --git a/src/native/mac/juce_mac_AudioCDReader_helpers.h b/src/native/mac/juce_mac_AudioCDReader_helpers.h
+new file mode 100644
+index 0000000..7f16c22
+--- /dev/null
++++ b/src/native/mac/juce_mac_AudioCDReader_helpers.h
+@@ -0,0 +1,31 @@
++#ifndef __JUCE_MAC_AUDIOCDREADER_HELPERS_JUCEHEADER__
++#define __JUCE_MAC_AUDIOCDREADER_HELPERS_JUCEHEADER__
++
++#include <inttypes.h>
++
++// Functions to handle Apple's ill-conceived plist XML format.
++
++// Get an element from a key from apple's "dict" structure.
++const XmlElement* getElementForKey(const XmlElement& xml,
++                                   const String& key);
++
++int getIntValueForKey(const XmlElement& xml,
++                      const String& key,
++                      int dflt = -1);
++
++const XmlElement* getFirstNamedElement(const XmlElement& xml,
++                                       const String& name);
++
++// Get the track offsets for a CD given an XmlElement representing its TOC.Plist.
++// Returns NULL on success, otherwise a const char* representing an error.
++const char* getTrackOffsets(XmlDocument* xmlDocument, Array<int>* offsets);
++
++// Get the track offsets for a CD given a file representing the root volume for
++// that CD.
++//
++// Returns NULL on success, otherwise a const char* representing an error.
++const char* getTrackOffsets(const File& volume, Array<int>* offsets);
++
++#include "juce_mac_AudioCDReader_helpers_impl.h"
++
++#endif  // __JUCE_MAC_AUDIOCDREADER_HELPERS_JUCEHEADER__
+diff --git a/src/native/mac/juce_mac_AudioCDReader_helpers_impl.h b/src/native/mac/juce_mac_AudioCDReader_helpers_impl.h
+new file mode 100644
+index 0000000..d137d2d
+--- /dev/null
++++ b/src/native/mac/juce_mac_AudioCDReader_helpers_impl.h
+@@ -0,0 +1,176 @@
++// Here's the structure of a sample Mac OS/X .TOC.plist file.
++//
++// <plist version="1.0">
++// <dict>
++//
++// [other key/data pairs here]
++//
++// 	<key>Sessions</key>
++// 	<array>
++//     <dict>
++//
++//       [other key/data pairs that we don't care about here]
++//
++//       <key>Track Array</key>
++//       <array>
++//         <dict>
++//
++//          [other key/data pairs here]
++//
++//           <key>Start Block</key>
++//           <integer>150</integer>
++//         </dict>
++//
++//         <dict>
++//
++//          [other key/data pairs here]
++//
++//           <key>Start Block</key>
++//           <integer>2029</integer>
++//         </dict>
++//
++//        [more dicts here]
++//
++//       </array>
++//     </dict>
++//   </array>
++// </dict>
++// </plist>
++
++// Apple's plist format uses XML in an unusual fashion as a sort of lame
++// imitation of JSON - but why not just use JSON, or even better, its superset
++// YAML?
++//
++// Their format defeats the whole purpose of XML, where your meaning is put in
++// the tag names, by having meaningless tag names and having the meaning hidden
++// in the value where neither your XPath, your XSLT nor your XML schema can get
++// to it.
++//
++// An idiomatic XML document for the one above might look like:
++//
++// <sessions>
++//   <trackArray>
++//     <track>
++//       <startBlock=150/>
++//     </track>
++//   </trackArray>
++// </sessions>
++//
++// Now isn't that so much clearer?  Let's look at a subpart...
++//
++//   <trackArray><track><startBlock=150/></track></trackArray>
++//
++// vs Apple's
++//
++//   <key>Track Array</key>
++//   <array><dict><key>Start Block</key><integer>150</integer></dict></array>
++//
++// Let's compare JSON (json.org)
++//
++//   {"trackArray": [{"startBlock": 150}]}
++//
++// Much nicer, yes?
++//
++// JSON is a subset of YAML 1.2, but you could also write it in YAML (see yaml.org) as:
++//
++//   trackArray:
++//     -
++//       startBlock: 150
++//
++// which seems a little cryptic until you see a longer document...
++//
++//   sessions:
++//     -
++//       first track: 1
++//       last track: 11
++//       leadout block: 168953
++//       track array:
++//         -
++//           startBlock: 150
++//           data: false
++//           point: 1
++//         -
++//           startBlock: 15240
++//           data: false
++//           point: 2
++//
++// See how well it exposes just the data with whitespace and compare it to the
++// .TOC.plist in this directory!  And you're always free to use the JSON form
++// even within one file.
++
++inline const XmlElement* getElementForKey(const XmlElement& xml,
++                                          const String& key) {
++    forEachXmlChildElementWithTagName(xml, child, "key")
++    {
++      if (child->getAllSubText() == key)
++          return child->getNextElement();
++    }
++    return NULL;
++}
++
++inline int getIntValueForKey(const XmlElement& xml,
++                             const String& key,
++                             int dflt) {
++    const XmlElement* block = getElementForKey(xml, key);
++    return block ? int(strtol(block->getAllSubText().toCString(), NULL, 10)) : dflt;
++}
++
++inline const XmlElement* getFirstNamedElement(const XmlElement& xml, const String& name) {
++    forEachXmlChildElementWithTagName(xml, child, name)
++         return child;
++    return NULL;
++}
++
++// Get the track offsets for a CD given an XmlElement representing its TOC.Plist.
++// Returns NULL on success, otherwise a const char* representing an error.
++inline const char* getTrackOffsets(XmlDocument* xmlDocument,
++                                   Array<int>* offsets) {
++    ScopedPointer<XmlElement> xml(xmlDocument->getDocumentElement());
++    if (!xml)
++        return "Couldn't parse XML in file";
++
++    const XmlElement* dict = getFirstNamedElement(*xml, "dict");
++    if (!dict)
++        return "Couldn't get top level dictionary";
++
++    const XmlElement* sessions = getElementForKey(*dict, "Sessions");
++    if (!sessions)
++        return "Couldn't find sessions key";
++
++    const XmlElement* session = sessions->getFirstChildElement();
++    if (!session)
++        return "Couldn't find first session";
++
++    int leadOut = getIntValueForKey(*session, "Leadout Block");
++    if (leadOut < 0)
++        return "Couldn't find Leadout Block";
++
++    const XmlElement* trackArray = getElementForKey(*session, "Track Array");
++    if (!trackArray)
++        return "Couldn't find Track Array";
++
++    forEachXmlChildElement(*trackArray, track)
++    {
++        int trackValue = getIntValueForKey(*track, "Start Block");
++        if (trackValue < 0)
++            return "Couldn't find Start Block in the track";
++        offsets->add(trackValue * AudioCDReader::SAMPLES_PER_FRAME);
++    }
++
++    offsets->add(leadOut * AudioCDReader::SAMPLES_PER_FRAME);
++    return NULL;
++}
++
++// Get the track offsets for a CD given a file representing the root volume for
++// that CD.
++//
++// Returns NULL on success, otherwise a const char* representing an error.
++inline const char* getTrackOffsets(const File& volume,
++                                   Array<int>* offsets) {
++    File toc = volume.getChildFile(".TOC.plist");
++    if (!toc.exists())
++        return "No TOC file";
++
++    XmlDocument doc(toc);
++    return getTrackOffsets(&doc, offsets);
++}
+diff --git a/src/native/windows/juce_win32_AudioCDReader.cpp b/src/native/windows/juce_win32_AudioCDReader.cpp
+index 9f8bc18..9d82628 100644
+--- a/src/native/windows/juce_win32_AudioCDReader.cpp
++++ b/src/native/windows/juce_win32_AudioCDReader.cpp
+@@ -1715,7 +1715,7 @@ AudioCDReader::AudioCDReader (void* handle_)
+
+     sampleRate = 44100.0;
+     bitsPerSample = 16;
+-    lengthInSamples = getPositionOfTrackStart (numTracks);
++    lengthInSamples = getPositionOfTrackStart (getNumTracks());
+     numChannels = 2;
+     usesFloatingPointData = false;
+
+@@ -1821,7 +1821,7 @@ bool AudioCDReader::readSamples (int** destSamples, int numDestChannels, int sta
+
+                 // sometimes the read fails for just the very last couple of blocks, so
+                 // we'll ignore and errors in the last half-second of the disk..
+-                ok = startSampleInFile > (trackStarts [numTracks] - 20000);
++                ok = startSampleInFile > (trackStartSamples [getNumTracks()] - 20000);
+                 break;
+             }
+         }
+@@ -1839,22 +1839,17 @@ bool AudioCDReader::isCDStillPresent() const
+     return ((CDDeviceWrapper*) handle)->cdH->readTOC (&toc, false);
+ }
+
+-int AudioCDReader::getNumTracks() const
+-{
+-    return numTracks;
+-}
+-
+ int AudioCDReader::getPositionOfTrackStart (int trackNum) const
+ {
+     using namespace CDReaderHelpers;
+-    return (trackNum >= 0 && trackNum <= numTracks) ? trackStarts [trackNum] * samplesPerFrame
+-                                                    : 0;
++    return (trackNum >= 0 && trackNum <= getNumTracks ()) ?
++        trackStartSamples[trackNum] * samplesPerFrame : 0;
+ }
+
+ void AudioCDReader::refreshTrackLengths()
+ {
+     using namespace CDReaderHelpers;
+-    zeromem (trackStarts, sizeof (trackStarts));
++    trackStartSamples.clear();
+     zeromem (audioTracks, sizeof (audioTracks));
+
+     TOC toc;
+@@ -1862,24 +1857,19 @@ void AudioCDReader::refreshTrackLengths()
+
+     if (((CDDeviceWrapper*)handle)->cdH->readTOC (&toc, false))
+     {
+-        numTracks = 1 + toc.lastTrack - toc.firstTrack;
++        int numTracks = 1 + toc.lastTrack - toc.firstTrack;
+
+         for (int i = 0; i <= numTracks; ++i)
+         {
+-            trackStarts[i] = getAddressOf (&toc.tracks[i]);
+-            audioTracks[i] = ((toc.tracks[i].ADR & 4) == 0);
++            trackStartSamples.add (getAddressOf (&toc.tracks [i]));
++            audioTracks [i] = ((toc.tracks[i].ADR & 4) == 0);
+         }
+     }
+-    else
+-    {
+-        numTracks = 0;
+-    }
+ }
+
+ bool AudioCDReader::isTrackAudio (int trackNum) const
+ {
+-    return (trackNum >= 0 && trackNum <= numTracks) ? audioTracks [trackNum]
+-                                                    : false;
++    return trackNum >= 0 && trackNum <= getNumTracks() && audioTracks [trackNum];
+ }
+
+ void AudioCDReader::enableIndexScanning (bool b)
+@@ -2030,7 +2020,7 @@ int AudioCDReader::getCDDBId()
+     using namespace CDReaderHelpers;
+     refreshTrackLengths();
+
+-    if (numTracks > 0)
++    if (getNumTracks() > 0)
+     {
+         TOC toc;
+         zerostruct (toc);
+@@ -2039,7 +2029,7 @@ int AudioCDReader::getCDDBId()
+         {
+             int n = 0;
+
+-            for (int i = numTracks; --i >= 0;)
++            for (int i = getNumTracks(); --i >= 0;)
+             {
+                 int j = getMSFAddressOf (&toc.tracks[i]);
+
+@@ -2052,10 +2042,10 @@ int AudioCDReader::getCDDBId()
+
+             if (n != 0)
+             {
+-                const int t = getMSFAddressOf (&toc.tracks[numTracks])
++                const int t = getMSFAddressOf (&toc.tracks[getNumTracks()])
+                                 - getMSFAddressOf (&toc.tracks[0]);
+
+-                return ((n % 0xff) << 24) | (t << 8) | numTracks;
++                return ((n % 0xff) << 24) | (t << 8) | getNumTracks();
+             }
+         }
+     }
