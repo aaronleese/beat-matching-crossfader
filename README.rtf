@@ -1,0 +1,38 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww14400\viewh11480\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
+
+\f0\fs24 \cf0 \
+\
+BEAT MATCHING CROSSFADER :::::::::::::\
+by Aaron Leese\
+\
+\
+\
+Hopefully someone out there will find useful or cool.  I hacked together a quick application that plays a couple mp3s, with a crossfader - and downloads (from echonest) the beat information for the song (position of each and every beat .. booyah!), then beat matches (using granular resynthesis to timestretch .. no pitch shifting).\
+\
+The best explanation and demo a youtube video I put together is here:\
+http://www.youtube.com/watch?v=FV0yNvCaWAE&feature=player_embedded\
+ \
+A quick list of the libraries used in this project:\
+Echonest \'96 to retrieve beat information\
+jsonCpp \'96 for reading Json data from echonest\
+SoundTouch \'96 for time stretching the audio\
+mpg123 - for decoding mp3s\
+Juce \'96 everything else - duh!\
+\
+* all libraries are GPL or Apache license, all are fully included except juce\
+* all libraries have the implementation included and can be run without compilation except mpg123\
+\
+git source is here:\
+https://github.com/aaronleese/beat-matching-crossfader\
+ \
+\
+You will need to recompile the mpg123 format to use this project.\
+\
+To do so run the makeFile at:\
+/beat matching crossfade/Source/mpg123/mpg123_format_src/format\
+\
+Or compile the xcode project at the same location.}
